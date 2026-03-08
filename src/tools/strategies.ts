@@ -28,8 +28,79 @@ export async function getStrategyDetails(
   }
   try {
     const result = registry.getDeploymentDetails(params.strategy_key);
-    const details = unwrap(result, "Failed to get strategy details");
-    return toolResult(details);
+    const deploymentMap = unwrap(result, "Failed to get strategy details");
+
+    // Enrich each deployment with field definitions from the GUI
+    const deployments: Record<string, unknown> = {};
+    for (const [deploymentKey, meta] of deploymentMap) {
+      const entry: Record<string, unknown> = {
+        name: meta.name,
+        description: meta.description,
+        short_description: meta.short_description,
+      };
+
+      try {
+        const guiResult = await registry.getGui(
+          params.strategy_key,
+          deploymentKey,
+        );
+        const gui = unwrap(guiResult, "Failed to get GUI");
+
+        const fieldDefs = unwrap(
+          gui.getAllFieldDefinitions(),
+          "Failed to get field definitions",
+        );
+        const fields: Record<string, unknown> = {};
+        for (const f of fieldDefs) {
+          fields[f.binding] = {
+            name: f.name,
+            description: f.description,
+            ...(f.default !== undefined ? { default: f.default } : {}),
+            ...(f.presets?.length
+              ? {
+                  presets: f.presets.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    value: p.value,
+                  })),
+                }
+              : {}),
+          };
+        }
+        if (Object.keys(fields).length > 0) entry.fields = fields;
+
+        const selectTokens = unwrap(
+          gui.getSelectTokens(),
+          "Failed to get select tokens",
+        );
+        if (selectTokens.length > 0) {
+          const st: Record<string, unknown> = {};
+          for (const t of selectTokens) {
+            st[t.key] = {
+              name: t.name,
+              description: t.description,
+            };
+          }
+          entry.selectTokens = st;
+        }
+
+        const depositsCfg = unwrap(
+          gui.getDeposits(),
+          "Failed to get deposits",
+        );
+        if (depositsCfg.length > 0) {
+          entry.deposits = depositsCfg.map((d) => d.token);
+        }
+
+        gui.free();
+      } catch {
+        // If GUI introspection fails, still return the basic metadata
+      }
+
+      deployments[deploymentKey] = entry;
+    }
+
+    return toolResult({ deployments });
   } catch (e) {
     return toolError(String(e));
   }
