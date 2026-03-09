@@ -67,7 +67,12 @@ export async function getStrategyDetails(
               : {}),
           };
         }
-        if (Object.keys(fields).length > 0) entry.fields = fields;
+        entry.fields = fields;
+        if (Object.keys(fields).length === 0) {
+          console.warn(
+            `[strategies] No field definitions found for ${params.strategy_key}/${deploymentKey}`,
+          );
+        }
 
         const selectTokens = unwrap(
           gui.getSelectTokens(),

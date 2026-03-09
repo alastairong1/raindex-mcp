@@ -146,6 +146,9 @@ describe("raindex_get_strategy_details", () => {
     const parsed = JSON.parse(result.content[0].text);
     // Should still have the basic deployment metadata
     expect(parsed.deployments.base.name).toBe("Base");
+    // Should surface the error and return empty fields
+    expect(parsed.deployments.base.fields).toEqual({});
+    expect(parsed.deployments.base._guiError).toBe("Failed to get field definitions: GUI failed");
     expect((result as { isError?: boolean }).isError).toBeUndefined();
   });
 
